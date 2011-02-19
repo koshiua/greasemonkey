@@ -30,6 +30,19 @@ GM_BrowserUI.init = function() {
 
   window.addEventListener("load", GM_hitch(this, "chromeLoad"), false);
   window.addEventListener("unload", GM_hitch(this, "chromeUnload"), false);
+
+  this.globalHotkeyCode = GM_prefRoot.getValue("globalHotkeyCode") || 0;
+  this.globalHotkeyModifier = GM_prefRoot.getValue("globalHotkeyModifier") || 0;
+  document.addEventListener('keydown', function(event) {
+    if (event.keyCode != GM_BrowserUI.globalHotkeyCode)
+      return;
+    var mod = 0;
+    mod += event.shiftKey ? 1 : 0;
+    mod += event.ctrlKey  ? 2 : 0;
+    mod += event.altKey   ? 4 : 0;
+    if (mod == GM_BrowserUI.globalHotkeyModifier)
+      GM_UsercommandsOpenPopup();
+  }, false);
 };
 
 /**
@@ -485,6 +498,38 @@ function GM_popupClicked(aEvent) {
 }
 
 /**
+ * Open popup with user commands near the status icon
+ */
+function GM_UsercommandsOpenPopup() {
+  var popupmenu = document.getElementById('gm-userscript-commands-popup');
+  // Don't open empty popup
+  if (document.getElementById('userscript-commands-sb').firstChild.firstChild)
+    document.getElementById('gm-userscript-commands-popup').openPopup(
+        document.getElementById('gm-status'),
+        'before_end', 0, 0, false, false);
+}
+
+/**
+ * Temporarily move all user command menu items
+ * between the submenu and the popup menu
+ * act = 1:
+ *  Move items from the submenu to the popup menu just before it is made visible
+ * act = 2:
+ *  Bring back all user command menu items
+ *  to the submenu once the popup menu has been hidden
+ */
+function GM_UsercommandsPopupTeleport(act) {
+  var popupmenu = document.getElementById('gm-userscript-commands-popup');
+  var submenu = document.getElementById('userscript-commands-sb').firstChild;
+  if (act==1)      // onpopupshowing
+    while (submenu.firstChild)
+      popupmenu.appendChild(submenu.firstChild);
+  else if (act==2) // onpopuphidden
+    while (popupmenu.firstChild)
+      submenu.appendChild(popupmenu.firstChild);
+}
+
+/**
  * Greasemonkey's enabled state has changed, either as a result of clicking
  * the icon in this window, clicking it in another window, or even changing
  * the mozilla preference that backs it directly.
@@ -527,7 +572,10 @@ GM_BrowserUI.init();
 GM_BrowserUI.statusClicked = function(aEvent) {
   switch (aEvent.button) {
   case 0:
-    GM_setEnabled(!GM_getEnabled());
+    if (!GM_prefRoot.getValue("leftClickUsercommands"))
+      GM_setEnabled(!GM_getEnabled());
+    else
+      GM_UsercommandsOpenPopup();
     break;
   case 1:
     GM_OpenScriptsMgr();
